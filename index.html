@@ -306,14 +306,47 @@
 
   #per-eval { padding: 14px 20px; }
   .per-eval-title { font-size: 10px; color: #6E7E97; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 4px; }
-  .per-eval-sub { font-size: 11px; color: #5E6E87; font-style: italic; margin-bottom: 12px; }
-  .per-eval-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #1A2740; }
-  .per-eval-row:last-child { border-bottom: none; }
-  .per-eval-name { font-size: 13px; color: #D8DFEC; }
-  .per-eval-grade {
-    padding: 3px 10px; border-radius: 5px;
-    font-family: 'Fraunces', serif; font-size: 14px; font-weight: 600;
-    min-width: 56px; text-align: center;
+  .per-eval-sub { font-size: 11px; color: #5E6E87; font-style: italic; margin-bottom: 10px; }
+  .per-eval-legend {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+    padding-bottom: 12px; border-bottom: 1px dashed #243B5C;
+  }
+  .legend-chip {
+    font-size: 10.5px; padding: 4px 9px; border-radius: 5px;
+    font-weight: 500;
+  }
+  .legend-chip.legend-low { background: rgba(248,113,113,0.10); color: #F87171; border: 1px solid rgba(248,113,113,0.20); }
+  .legend-chip.legend-high { background: rgba(74,222,128,0.10); color: #4ADE80; border: 1px solid rgba(74,222,128,0.20); }
+
+  .per-eval-row-v2 {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid #1A2740;
+  }
+  .per-eval-row-v2:last-child { border-bottom: none; }
+  .per-eval-info { flex: 1; min-width: 0; }
+  .per-eval-name { font-size: 13px; color: #D8DFEC; font-weight: 500; }
+  .per-eval-weight { font-size: 11px; color: #6E7E97; margin-top: 2px; }
+  .per-eval-constraint {
+    font-size: 10px; color: #FACC15; margin-top: 4px;
+    font-style: italic; opacity: 0.85;
+  }
+
+  .per-eval-scenarios { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .scenario-pill {
+    padding: 5px 9px; border-radius: 7px; min-width: 64px; text-align: center;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .scenario-pill-label { font-size: 9px; color: inherit; opacity: 0.7; letter-spacing: 0.5px; font-weight: 500; }
+  .scenario-pill-value {
+    font-family: 'Fraunces', serif; font-size: 15px; font-weight: 700;
+    line-height: 1.1; margin-top: 2px;
+  }
+  .scenario-pill-arrow { color: #3D4A60; font-size: 13px; font-weight: 600; }
+
+  @media (max-width: 420px) {
+    .per-eval-row-v2 { flex-direction: column; align-items: flex-start; }
+    .per-eval-scenarios { width: 100%; justify-content: space-between; }
+    .scenario-pill { flex: 1; }
   }
 
   /* ── Footer ── */
@@ -407,8 +440,12 @@
       <div id="checks-list"></div>
     </div>
     <div id="per-eval" style="display:none">
-      <div class="per-eval-title">MÍNIMO EN CADA EVALUACIÓN PENDIENTE</div>
-      <div class="per-eval-sub">asumiendo 7.0 en todo lo demás — piso absoluto considerando todos los requisitos</div>
+      <div class="per-eval-title">QUÉ NECESITAS EN CADA EVALUACIÓN</div>
+      <div class="per-eval-sub">depende de cómo te vaya en las otras pendientes — mira los 2 escenarios</div>
+      <div class="per-eval-legend">
+        <span class="legend-chip legend-low">si en las demás apenas apruebas (4.0)</span>
+        <span class="legend-chip legend-high">si en las demás te va bien (6.0)</span>
+      </div>
       <div id="per-eval-list"></div>
     </div>
   </div>
@@ -747,42 +784,54 @@ function analyzeGrades(courseId) {
     if (eg !== null) specialChecks.push({ label:"Examen ≥ 3.0", passed: eg>=3.0, detail: `Tu examen: ${eg.toFixed(1)}` });
   }
 
-  // ── Per-eval analysis: minimum in each eval assuming 7.0 in all others ──────
-  const perEvalAnalysis = pending.map(ev => {
+  // ── Per-eval analysis: minimum needed in each eval for a given "others" grade
+  function neededForEval(ev, othersGrade) {
     const otherW = pendW - ev.weight;
-    // Use 7.0 for others → gives the absolute floor for this eval
-    let needed = (thr * total - earned - 7.0 * otherW) / ev.weight;
-    let reason = "promedio general (con 7.0 en lo demás)";
+    let needed = (thr * total - earned - othersGrade * otherW) / ev.weight;
+    let constraint = null;
 
     if (courseId === "micro") {
-      if (ev.id === "e" && 3.0 > needed) { needed = 3.0; reason = "mínimo del examen"; }
+      if (ev.id === "e" && 3.0 > needed) { needed = 3.0; constraint = "examen ≥ 3.0"; }
       if (ev.id !== "tg") {
         let eNoTG = 0, otherPendNoTG = 0;
         done.filter(d=>d.id!=="tg").forEach(d=>eNoTG+=d.grade*d.weight);
         pending.filter(p=>p.id!=="tg"&&p.id!==ev.id).forEach(p=>otherPendNoTG+=p.weight);
-        // Also assume 7.0 in other pending non-TG evals
-        const nForNoTG = (3.95 * 95 - eNoTG - 7.0 * otherPendNoTG) / ev.weight;
-        if (nForNoTG > needed) { needed = nForNoTG; reason = "promedio sin Trabajo Grupal"; }
+        const nForNoTG = (3.95 * 95 - eNoTG - othersGrade * otherPendNoTG) / ev.weight;
+        if (nForNoTG > needed) { needed = nForNoTG; constraint = "promedio sin TG"; }
       }
     }
 
     if (courseId === "comportamiento") {
-      if (ev.id === "e" && 4.0 > needed) { needed = 4.0; reason = "examen reprobatorio (mínimo 4.0)"; }
+      if (ev.id === "e" && 4.0 > needed) { needed = 4.0; constraint = "examen reprobatorio ≥ 4.0"; }
       if (ev.id !== "pp") {
         let eNoPP = 0, otherPendNoPP = 0;
         done.filter(d=>d.id!=="pp").forEach(d=>eNoPP+=d.grade*d.weight);
         pending.filter(p=>p.id!=="pp"&&p.id!==ev.id).forEach(p=>otherPendNoPP+=p.weight);
-        // Also assume 7.0 in other pending non-PP evals
-        const nForNoPP = (4.0 * 70 - eNoPP - 7.0 * otherPendNoPP) / ev.weight;
-        if (nForNoPP > needed) { needed = nForNoPP; reason = "promedio sin Paso Práctico"; }
+        const nForNoPP = (4.0 * 70 - eNoPP - othersGrade * otherPendNoPP) / ev.weight;
+        if (nForNoPP > needed) { needed = nForNoPP; constraint = "promedio sin PP"; }
       }
     }
 
     if (courseId === "contabilidad") {
-      if (ev.id === "e" && 3.0 > needed) { needed = 3.0; reason = "mínimo del examen"; }
+      if (ev.id === "e" && 3.0 > needed) { needed = 3.0; constraint = "examen ≥ 3.0"; }
     }
 
-    return { ...ev, needed, reason, achievable: needed <= 7.0, easy: needed <= 4.0 };
+    return { needed, constraint };
+  }
+
+  // Two practical scenarios per eval: "si solo apruebas las demás" (4.0)
+  // and "si te va bien en las demás" (6.0)
+  const perEvalAnalysis = pending.map(ev => {
+    const low  = neededForEval(ev, 4.0); // if others = 4.0 (apenas pasan)
+    const high = neededForEval(ev, 6.0); // if others = 6.0 (les va bien)
+    return {
+      ...ev,
+      neededLow: low.needed,
+      neededHigh: high.needed,
+      constraint: low.constraint || high.constraint,
+      achievableLow:  low.needed  <= 7.0,
+      achievableHigh: high.needed <= 7.0,
+    };
   });
 
   // ── Extra constraints for prominent display ──────────────────────────────
@@ -1063,24 +1112,41 @@ function renderVerdict() {
   const perEvalSection = document.getElementById("per-eval");
   if (a.perEvalAnalysis && a.perEvalAnalysis.length) {
     perEvalSection.style.display = "block";
+
+    const fmtGrade = (n, ok) => {
+      if (!ok) return { text: "imposible", color: "#F87171", bg: "#3A1F1F" };
+      const d = Math.max(1.0, n);
+      if (d <= 1.05) return { text: "cualquiera", color: "#4ADE80", bg: "#143020" };
+      if (d <= 4.0) return { text: d.toFixed(1), color: "#4ADE80", bg: "#143020" };
+      if (d <= 5.5) return { text: d.toFixed(1), color: "#FACC15", bg: "#3A2F1F" };
+      if (d <= 6.5) return { text: d.toFixed(1), color: "#FB923C", bg: "#3A271F" };
+      return { text: d.toFixed(1), color: "#FB923C", bg: "#3A271F" };
+    };
+
     document.getElementById("per-eval-list").innerHTML = a.perEvalAnalysis.map(ev => {
-      const n = ev.needed;
-      const ok = ev.achievable;
-      const disp = Math.max(1.0, n);
-      const isFloor = disp <= 1.05; // essentially 1.0 — already covered
-      const bg = !ok ? "#3A1F1F" : isFloor ? "#143020" : n <= 4.0 ? "#143020" : n > 6.0 ? "#3A271F" : "#3A2F1F";
-      const fg = !ok ? "#F87171" : isFloor ? "#4ADE80" : n <= 4.0 ? "#4ADE80" : n > 6.0 ? "#FB923C" : "#FACC15";
-      const dispText = !ok ? "imposible" : isFloor ? "cualquiera" : disp.toFixed(1);
-      const constraintNote = ev.reason !== "promedio general (con 7.0 en lo demás)"
-        ? `<div style="font-size:10px;color:#5E6E87;margin-top:2px;font-style:italic">restricción: ${ev.reason}</div>`
+      const low  = fmtGrade(ev.neededLow,  ev.achievableLow);
+      const high = fmtGrade(ev.neededHigh, ev.achievableHigh);
+      const constraintNote = ev.constraint
+        ? `<div class="per-eval-constraint">restricción: ${ev.constraint}</div>`
         : "";
       return `
-        <div class="per-eval-row" style="align-items:flex-start;padding:10px 0">
-          <div>
+        <div class="per-eval-row-v2">
+          <div class="per-eval-info">
             <div class="per-eval-name">${ev.name}</div>
+            <div class="per-eval-weight">${ev.weight.toFixed(1)}% del ramo</div>
             ${constraintNote}
           </div>
-          <div class="per-eval-grade" style="background:${bg};color:${fg};margin-top:2px;min-width:80px;font-size:${isFloor||!ok?'12px':'14px'}">${dispText}</div>
+          <div class="per-eval-scenarios">
+            <div class="scenario-pill" style="background:${low.bg};color:${low.color}">
+              <div class="scenario-pill-label">otras = 4.0</div>
+              <div class="scenario-pill-value">${low.text}</div>
+            </div>
+            <div class="scenario-pill-arrow">→</div>
+            <div class="scenario-pill" style="background:${high.bg};color:${high.color}">
+              <div class="scenario-pill-label">otras = 6.0</div>
+              <div class="scenario-pill-value">${high.text}</div>
+            </div>
+          </div>
         </div>`;
     }).join("");
   } else { perEvalSection.style.display = "none"; }
