@@ -996,7 +996,6 @@ function renderVerdict() {
         detailEl.innerHTML = `que necesitas <b style="color:#D8DFEC">en promedio</b> entre las ${pendCount} pendientes, cumpliendo todos los requisitos. Puedes compensar — sacar más en una y menos en otra.`;
       }
 
-      // Scale
       scaleWrap.style.display = "block";
       const markerPos = ((displayU - 1) / 6) * 100;
       const marker = document.getElementById("scale-marker");
@@ -1015,7 +1014,6 @@ function renderVerdict() {
       }
     }
 
-    // Extras
     if (a.extras && a.extras.length > 0) {
       extrasEl.style.display = "block";
       extrasEl.innerHTML = `<div style="font-size:10px;color:#6E7E97;letter-spacing:1.5px;font-weight:600;margin-bottom:8px">PERO ADEMÁS</div>` +
@@ -1044,7 +1042,6 @@ function renderVerdict() {
     scenariosBlock.style.display = "none";
   } else { minAvgSection.style.display = "none"; }
 
-  // Special checks
   const checksSection = document.getElementById("special-checks");
   if (a.specialChecks && a.specialChecks.length) {
     checksSection.style.display = "block";
@@ -1060,7 +1057,6 @@ function renderVerdict() {
       </div>`).join("");
   } else { checksSection.style.display = "none"; }
 
-  // Per-eval breakdown
   const perEvalSection = document.getElementById("per-eval");
   if (a.perEvalAnalysis && a.perEvalAnalysis.length) {
     perEvalSection.style.display = "block";
@@ -1119,7 +1115,6 @@ function renderScenarios(a, courseId) {
   const total = a.doneW + a.pendW;
   const earned = a.currentAvg * a.doneW;
 
-  // Pick the highest-weight pending evaluation as the "anchor" for scenarios
   const sorted = [...a.perEvalAnalysis].sort((x, y) => y.weight - x.weight);
   const anchor = sorted[0];
   const others = sorted.slice(1);
@@ -1218,22 +1213,18 @@ function renderScenarios(a, courseId) {
 
 // ─── Events ───────────────────────────────────────────────────────────────────
 document.addEventListener("click", e => {
-  // Tab switch
   const tab = e.target.closest("[data-tab]");
   if (tab) { state.tab = tab.dataset.tab; render(); return; }
 
-  // Clear grade
   const clr = e.target.closest("[data-course][data-id].clear-btn");
   if (clr) {
     delete state.grades[clr.dataset.course][clr.dataset.id];
     saveState(); render(); return;
   }
 
-  // Surprise count
   const sn = e.target.closest(".sn-btn");
   if (sn) { state.surpriseCount = parseInt(sn.dataset.n); saveState(); render(); return; }
 
-  // Scenario pick
   const sc = e.target.closest(".scenario-btn");
   if (sc) { state.scenarioPick = parseFloat(sc.dataset.pick); renderVerdict(); return; }
 });
@@ -1270,7 +1261,6 @@ document.addEventListener("input", e => {
     saveState();
     renderVerdict();
 
-    // Update the row visuals without full re-render
     const num = parseFloat(e.target.value);
     const fillPct = ((num - 1) / 6) * 100;
     const bcolor = gradeColor(num);
@@ -1298,7 +1288,6 @@ document.addEventListener("input", e => {
       }
     }
 
-    // Update hero avg
     const cur = calcCurrent(state.tab);
     const avgBox = document.getElementById("avg-box");
     if (cur) {
