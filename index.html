@@ -140,6 +140,19 @@
   }
   .grade-tag.set span { color: #0E1A2C; }
 
+  /* ── Grade number input ── */
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .grade-num-input {
+    width: 58px; background: #0F1B30; border: 1px solid #2A3A55;
+    border-radius: 6px; color: #D8DFEC; font-size: 14px; font-weight: 600;
+    text-align: center; padding: 5px 6px; outline: none; flex-shrink: 0;
+    font-family: 'Fraunces', serif; transition: border-color 0.15s;
+    -moz-appearance: textfield;
+  }
+  .grade-num-input::-webkit-inner-spin-button,
+  .grade-num-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  .grade-num-input:focus { border-color: var(--accent, #5BABC4); }
+
   /* Slider */
   .grade-slider {
     -webkit-appearance: none; appearance: none;
@@ -219,6 +232,19 @@
   }
   .scale-tick.active { color: var(--marker-color, #FACC15); font-weight: 700; }
 
+  /* ── Uniform scenario sweep ── */
+  .uniform-scenario { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #243B5C; }
+  .uniform-title { font-size: 10px; color: #6E7E97; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px; }
+  .uniform-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+  .uniform-chip {
+    padding: 5px 11px; border-radius: 6px; font-family: 'Fraunces', serif;
+    font-size: 13px; font-weight: 600; border: 1px solid transparent;
+  }
+  .uniform-chip.pass { background: rgba(74,222,128,0.10); border-color: rgba(74,222,128,0.22); color: #4ADE80; }
+  .uniform-chip.fail { background: rgba(248,113,113,0.07); border-color: rgba(248,113,113,0.14); color: #F87171; }
+  .uniform-chip.threshold { background: #4ADE80; border-color: #4ADE80; color: #0E1A2C; font-weight: 700; }
+  .uniform-caption { font-size: 11.5px; color: #6E7E97; font-style: italic; }
+
   /* Scenario picker */
   .scenarios-block {
     margin-top: 14px; padding-top: 14px;
@@ -264,16 +290,6 @@
 
   #special-checks { padding: 14px 20px; border-bottom: 1px solid #1F2D44; }
 
-  /* Minimum average needed card */
-  #min-avg-section { padding: 18px 20px; border-bottom: 1px solid #1F2D44; }
-  .min-avg-card { text-align: center; padding: 4px 0; }
-  .min-avg-label { font-size: 10px; color: #6E7E97; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 8px; }
-  .min-avg-value {
-    font-family: 'Fraunces', serif; font-size: 56px; font-weight: 700;
-    line-height: 1; letter-spacing: -1.5px; margin-bottom: 8px;
-  }
-  .min-avg-reason { font-size: 12px; color: #8997B0; font-style: italic; }
-  .min-avg-reason b { color: #D8DFEC; font-style: normal; font-weight: 600; }
   .checks-title { font-size: 10px; color: #6E7E97; letter-spacing: 1.5px; font-weight: 600; margin-bottom: 10px; }
   .check-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .check-row:last-child { margin-bottom: 0; }
@@ -370,6 +386,8 @@
         </div>
       </div>
 
+      <div id="uniform-sweep" style="display:none"></div>
+
       <div class="scenarios-block" id="scenarios-block" style="display:none">
         <div class="scenarios-title">SIMULA UN ESCENARIO</div>
         <div class="scenarios-prompt" id="scenarios-prompt"></div>
@@ -383,13 +401,6 @@
       <div class="stat-cell"><div class="stat-label">ACTUAL</div><div class="stat-value" id="stat-actual">—</div></div>
       <div class="stat-cell"><div class="stat-label">MÍN POSIBLE</div><div class="stat-value" id="stat-min">—</div></div>
       <div class="stat-cell"><div class="stat-label">MÁX POSIBLE</div><div class="stat-value" id="stat-max">—</div></div>
-    </div>
-    <div id="min-avg-section" style="display:none">
-      <div class="min-avg-card">
-        <div class="min-avg-label">PROMEDIO MÍNIMO EN LO QUE QUEDA</div>
-        <div class="min-avg-value" id="min-avg-value">—</div>
-        <div class="min-avg-reason" id="min-avg-reason"></div>
-      </div>
     </div>
     <div id="special-checks" style="display:none">
       <div class="checks-title">REQUISITOS ESPECIALES</div>
@@ -410,7 +421,7 @@ const COURSES = {
   micro: {
     name: "Microeconomía", fullName: "Introducción a la Microeconomía",
     code: "EAE-1110", color: "#E8B547", softColor: "#3A2F1F",
-    rulesNote: "Examen ≥ 3.0 · Promedio sin TG / 0.95 > 3.95 · Nota final > 3.95",
+    rulesNote: "Examen ≥ 3.0 · Promedio sin TG > 3.95 · Nota final > 3.95",
     threshold: 3.95,
     groups: [
       { label: "Trabajo en equipo", color: "#A287C7", evals: [{ id:"tg", name:"Trabajo Grupal", weight:5 }] },
@@ -474,7 +485,7 @@ let state = {
   tab: "micro",
   grades: { micro:{}, comportamiento:{}, contabilidad:{}, calculo:{} },
   surpriseCount: 3,
-  scenarioPick: 5.0,  // user's hypothetical grade for "what if I get X in the highest-weight pending"
+  scenarioPick: 5.0,
 };
 
 function loadState() {
@@ -530,6 +541,53 @@ function calcCurrent(courseId) {
   return wt > 0 ? { avg: ws / wt, weight: wt } : null;
 }
 
+// ─── Check if getting `grade` uniformly in all pending evals leads to approval ─
+function wouldPassUniform(courseId, grade, a) {
+  const course = COURSES[courseId];
+  const thr = course.threshold;
+  const total = a.doneW + a.pendW;
+  const earned = a.currentAvg * a.doneW;
+  const finalAvg = (earned + grade * a.pendW) / total;
+
+  if (finalAvg < thr) return false;
+
+  const pending = a.perEvalAnalysis;
+  const g = state.grades[courseId] || {};
+  const evs = getEvals(courseId);
+
+  if (courseId === "micro") {
+    if (pending.find(p => p.id === "e") && grade < 3.0) return false;
+    let earnedNoTG = 0, pendWNoTG = 0;
+    evs.forEach(ev => {
+      if (ev.id !== "tg") {
+        const gr = parseG(g[ev.id]);
+        if (gr !== null) earnedNoTG += gr * ev.weight;
+        else pendWNoTG += ev.weight;
+      }
+    });
+    if ((earnedNoTG + grade * pendWNoTG) / 95 <= 3.95) return false;
+  }
+
+  if (courseId === "comportamiento") {
+    if (pending.find(p => p.id === "e") && grade < 4.0) return false;
+    let earnedNoPP = 0, pendWNoPP = 0;
+    evs.forEach(ev => {
+      if (ev.id !== "pp") {
+        const gr = parseG(g[ev.id]);
+        if (gr !== null) earnedNoPP += gr * ev.weight;
+        else pendWNoPP += ev.weight;
+      }
+    });
+    if ((earnedNoPP + grade * pendWNoPP) / 70 < 4.0) return false;
+  }
+
+  if (courseId === "contabilidad") {
+    if (pending.find(p => p.id === "e") && grade < 3.0) return false;
+  }
+
+  return true;
+}
+
 function analyzeGrades(courseId) {
   const course = COURSES[courseId];
   const evs = getEvals(courseId);
@@ -553,17 +611,14 @@ function analyzeGrades(courseId) {
   const uniformNeeded = pendW > 0 ? (thr * total - earned) / pendW : null;
 
   // ── Minimum uniform grade across ALL pending considering ALL constraints ──
-  // (i.e. if you got the same grade X on every pending eval, what's the minimum X to pass everything?)
   let uniformNeededAll = uniformNeeded;
   let uniformReason = "promedio general";
 
   if (pendW > 0) {
     if (courseId === "micro") {
-      // Constraint: exam ≥ 3.0 (only matters if exam is pending)
       if (pending.find(p => p.id === "e") && 3.0 > uniformNeededAll) {
         uniformNeededAll = 3.0; uniformReason = "mínimo del examen";
       }
-      // Constraint: promedio sin TG > 3.95
       let eNoTG_u = 0, pendWNoTG_u = 0;
       done.filter(d=>d.id!=="tg").forEach(d=>eNoTG_u+=d.grade*d.weight);
       pending.filter(p=>p.id!=="tg").forEach(p=>pendWNoTG_u+=p.weight);
@@ -604,7 +659,6 @@ function analyzeGrades(courseId) {
       hardImpossible = true;
       hardReason = `Examen con ${eg.toFixed(1)} (mínimo 3.0). Repruebas aunque tengas 7.0 en todo lo demás.`;
     }
-    // promedio sin TG > 3.95: sum_no_tg / 95 > 3.95
     let eNoTG = 0, pendWNoTG = 0;
     done.filter(d=>d.id!=="tg").forEach(d=>eNoTG+=d.grade*d.weight);
     pending.filter(p=>p.id!=="tg").forEach(p=>pendWNoTG+=p.weight);
@@ -620,7 +674,6 @@ function analyzeGrades(courseId) {
       hardImpossible = true;
       hardReason = `Examen con ${eg.toFixed(1)} — es reprobatorio (mínimo 4.0). Repruebas el ramo aunque tengas 7.0 en todo lo demás.`;
     }
-    // promedio sin PP ≥ 4.0: sum_no_pp / 70 ≥ 4.0
     let eNoPP = 0, pendWNoPP = 0;
     done.filter(d=>d.id!=="pp").forEach(d=>eNoPP+=d.grade*d.weight);
     pending.filter(p=>p.id!=="pp").forEach(p=>pendWNoPP+=p.weight);
@@ -638,22 +691,29 @@ function analyzeGrades(courseId) {
     }
   }
 
-  // ── Verdict ──────────────────────────────────────────────────────────────
+  // ── Verdict — strictly applies all course rules ──────────────────────────
   let verdict, verdictDetail = "";
   if (pendW === 0) {
+    // All grades submitted — apply all rules precisely
     const f = earned / total;
-    if (hardImpossible) { verdict = "REPROBADO"; verdictDetail = hardReason; }
-    else { verdict = f >= thr ? "APROBADO" : "REPROBADO"; verdictDetail = `Nota final: ${f.toFixed(2)}`; }
+    if (hardImpossible) {
+      verdict = "REPROBADO"; verdictDetail = hardReason;
+    } else {
+      // Check threshold strictly (micro: > 3.95, others: >= threshold)
+      const passes = courseId === "micro" ? f > 3.95 : f >= thr;
+      verdict = passes ? "APROBADO" : "REPROBADO";
+      verdictDetail = `Nota final: ${f.toFixed(2)}`;
+    }
   } else if (hardImpossible) {
     verdict = "IMPOSIBLE"; verdictDetail = hardReason;
-  } else if (maxFinal < thr) {
+  } else if (maxFinal < thr || (courseId === "micro" && maxFinal <= 3.95)) {
     verdict = "IMPOSIBLE"; verdictDetail = `Ni con 7.0 en todo lo pendiente llegas a ${thr}.`;
-  } else if (minFinal >= thr) {
+  } else if (minFinal >= thr && !hardImpossible) {
     verdict = "SEGURA"; verdictDetail = `Aprobado seguro, incluso sacando 1.0 en lo que queda.`;
   } else if (uniformNeededAll > 6.0) {
-    verdict = "DIFICIL"; verdictDetail = `Necesitas promedio ${uniformNeededAll.toFixed(2)} en lo que queda. Va a estar duro.`;
+    verdict = "DIFICIL"; verdictDetail = `Necesitas promedio ${uniformNeededAll.toFixed(2)} en lo que queda (considerando todos los requisitos del ramo). Va a estar duro.`;
   } else if (uniformNeededAll <= 4.0) {
-    verdict = "SEGURA"; verdictDetail = `Solo necesitas promedio ${uniformNeededAll.toFixed(2)} en lo que queda.`;
+    verdict = "POSIBLE"; verdictDetail = `Necesitas promedio ${uniformNeededAll.toFixed(2)} en lo que queda.`;
   } else {
     verdict = "POSIBLE"; verdictDetail = `Necesitas promedio ${uniformNeededAll.toFixed(2)} en lo que queda.`;
   }
@@ -690,15 +750,12 @@ function analyzeGrades(courseId) {
   // ── Per-eval analysis (all constraints) ──────────────────────────────────
   const perEvalAnalysis = pending.map(ev => {
     const otherW = pendW - ev.weight;
-
-    // Constraint 1: weighted average ≥ threshold
     let needed = (thr * total - earned - 5.0 * otherW) / ev.weight;
     let reason = "promedio general";
 
     if (courseId === "micro") {
       if (ev.id === "e" && 3.0 > needed) { needed = 3.0; reason = "mínimo del examen"; }
       if (ev.id !== "tg") {
-        // promedio sin TG > 3.95: sum_no_tg / 95 > 3.95
         let eNoTG = 0, otherPendNoTG = 0;
         done.filter(d=>d.id!=="tg").forEach(d=>eNoTG+=d.grade*d.weight);
         pending.filter(p=>p.id!=="tg"&&p.id!==ev.id).forEach(p=>otherPendNoTG+=p.weight);
@@ -710,7 +767,6 @@ function analyzeGrades(courseId) {
     if (courseId === "comportamiento") {
       if (ev.id === "e" && 4.0 > needed) { needed = 4.0; reason = "examen reprobatorio (mínimo 4.0)"; }
       if (ev.id !== "pp") {
-        // promedio sin PP ≥ 4.0: sum_no_pp / 70 ≥ 4.0
         let eNoPP = 0, otherPendNoPP = 0;
         done.filter(d=>d.id!=="pp").forEach(d=>eNoPP+=d.grade*d.weight);
         pending.filter(p=>p.id!=="pp"&&p.id!==ev.id).forEach(p=>otherPendNoPP+=p.weight);
@@ -765,7 +821,7 @@ function analyzeGrades(courseId) {
     }
   }
 
-  return { state:"analyzed", currentAvg, doneW, pendW, maxFinal, minFinal, uniformNeeded, verdict, verdictDetail, specialChecks, perEvalAnalysis, extras, hardImpossible };
+  return { state:"analyzed", currentAvg, doneW, pendW, maxFinal, minFinal, uniformNeeded, uniformNeededAll, uniformReason, verdict, verdictDetail, specialChecks, perEvalAnalysis, extras, hardImpossible };
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
@@ -825,9 +881,15 @@ function render() {
               </div>
             </div>
           </div>
-          <input type="range" class="grade-slider" min="1" max="7" step="0.1"
-            value="${num}" data-course="${cid}" data-id="${ev.id}" data-set="${isSet}"
-            style="--accent:${group.color}">
+          <div class="slider-row">
+            <input type="range" class="grade-slider" min="1" max="7" step="0.1"
+              value="${num}" data-course="${cid}" data-id="${ev.id}" data-set="${isSet}"
+              style="--accent:${group.color}">
+            <input type="number" class="grade-num-input" min="1" max="7" step="0.1"
+              value="${isSet ? num.toFixed(1) : ''}" placeholder="—"
+              data-course="${cid}" data-id="${ev.id}"
+              style="--accent:${group.color}">
+          </div>
           <div class="progress-wrap">
             <div class="progress-track">
               <div class="progress-fill" style="width:${fillPct}%;background:${bcolor};${isSet?`box-shadow:0 0 8px ${bcolor}66`:""};"></div>
@@ -884,14 +946,16 @@ function renderVerdict() {
     [statActual, statMin, statMax].forEach(el => { el.textContent = "—"; el.style.color = "#3D4A60"; });
   }
 
-  // Minimum average needed (uniform across pending) + extra constraints + scenarios
   const minAvgSection = document.getElementById("min-avg-section");
   const scaleWrap = document.getElementById("scale-wrap");
   const scenariosBlock = document.getElementById("scenarios-block");
+  const uniformSweep = document.getElementById("uniform-sweep");
 
   if (a.state === "analyzed" && a.pendW > 0 && !a.hardImpossible) {
     minAvgSection.style.display = "block";
-    const u = a.uniformNeeded;
+
+    // Use uniformNeededAll (constraint-aware) for display
+    const u = (a.uniformNeededAll !== undefined && a.uniformNeededAll !== null) ? a.uniformNeededAll : a.uniformNeeded;
     const valueEl = document.getElementById("min-avg-value");
     const suffixEl = document.getElementById("min-avg-suffix");
     const detailEl = document.getElementById("min-avg-detail");
@@ -905,6 +969,7 @@ function renderVerdict() {
       suffixEl.textContent = "";
       detailEl.innerHTML = `Ni con 7.0 en todo lo que queda alcanzas el promedio mínimo.`;
       scaleWrap.style.display = "none";
+      uniformSweep.style.display = "none";
       scenariosBlock.style.display = "none";
     } else if (u <= 1.0) {
       valueEl.textContent = "1.0";
@@ -916,6 +981,7 @@ function renderVerdict() {
       const markerPos = ((1.0 - 1) / 6) * 100;
       document.getElementById("scale-marker").style.left = markerPos + "%";
       document.getElementById("scale-marker").style.setProperty("--marker-color", "#4ADE80");
+      uniformSweep.style.display = "none";
       scenariosBlock.style.display = "none";
     } else {
       const displayU = Math.max(1.0, u);
@@ -925,9 +991,9 @@ function renderVerdict() {
       valueEl.style.fontSize = "56px";
       suffixEl.textContent = pendCount === 1 ? "en la pendiente" : "promedio";
       if (pendCount === 1) {
-        detailEl.innerHTML = `nota mínima exacta que necesitas en <b style="color:#D8DFEC">${a.perEvalAnalysis[0].name}</b>.`;
+        detailEl.innerHTML = `nota mínima exacta que necesitas en <b style="color:#D8DFEC">${a.perEvalAnalysis[0].name}</b>. Considera todos los requisitos del ramo.`;
       } else {
-        detailEl.innerHTML = `que necesitas <b style="color:#D8DFEC">en promedio</b> entre las ${pendCount} pendientes. Puedes compensar — sacar más en una y menos en otra.`;
+        detailEl.innerHTML = `que necesitas <b style="color:#D8DFEC">en promedio</b> entre las ${pendCount} pendientes, cumpliendo todos los requisitos. Puedes compensar — sacar más en una y menos en otra.`;
       }
 
       // Scale
@@ -937,7 +1003,10 @@ function renderVerdict() {
       marker.style.left = markerPos + "%";
       marker.style.setProperty("--marker-color", uColor);
 
-      // Scenarios (only when 2+ pending)
+      // Uniform grade sweep — show which grades lead to approval
+      renderUniformSweep(a, cid, uniformSweep);
+
+      // Scenarios (2+ pending evals)
       if (pendCount >= 2) {
         scenariosBlock.style.display = "block";
         renderScenarios(a, cid);
@@ -971,6 +1040,7 @@ function renderVerdict() {
     detailEl.innerHTML = `Ya no puedes aprobar este ramo por una restricción especial.`;
     extrasEl.style.display = "none";
     scaleWrap.style.display = "none";
+    uniformSweep.style.display = "none";
     scenariosBlock.style.display = "none";
   } else { minAvgSection.style.display = "none"; }
 
@@ -1013,6 +1083,35 @@ function renderVerdict() {
   } else { perEvalSection.style.display = "none"; }
 }
 
+// ─── Uniform grade sweep renderer ─────────────────────────────────────────────
+function renderUniformSweep(a, courseId, container) {
+  const sweepGrades = [1.0, 2.0, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 7.0];
+  let firstPassing = null;
+  for (const g of sweepGrades) {
+    if (wouldPassUniform(courseId, g, a)) { firstPassing = g; break; }
+  }
+
+  if (firstPassing === null) {
+    container.style.display = "none";
+    return;
+  }
+
+  container.style.display = "block";
+  container.innerHTML = `
+    <div class="uniform-scenario">
+      <div class="uniform-title">SI SACAS LA MISMA NOTA EN TODO LO PENDIENTE</div>
+      <div class="uniform-chips">
+        ${sweepGrades.map(g => {
+          const passes = wouldPassUniform(courseId, g, a);
+          const isFirst = g === firstPassing;
+          let cls = passes ? (isFirst ? 'threshold' : 'pass') : 'fail';
+          return `<div class="uniform-chip ${cls}">${g.toFixed(1)}</div>`;
+        }).join('')}
+      </div>
+      <div class="uniform-caption">Verde = apruebas · Rojo = repruebas · <b style="color:#4ADE80">Resaltado</b> = mínimo para pasar</div>
+    </div>`;
+}
+
 // ─── Scenarios renderer ──────────────────────────────────────────────────────
 function renderScenarios(a, courseId) {
   const course = COURSES[courseId];
@@ -1026,25 +1125,17 @@ function renderScenarios(a, courseId) {
   const others = sorted.slice(1);
   const otherTotalW = others.reduce((sum, e) => sum + e.weight, 0);
 
-  // Available scenario picks
   const picks = [3.0, 4.0, 5.0, 6.0, 7.0];
   const pick = state.scenarioPick;
 
-  // Calculate what's needed in OTHERS (uniform avg) given the pick for the anchor
-  // earned + pick * anchor.weight + needed_avg * otherTotalW = thr * total
   let neededInOthers = (thr * total - earned - pick * anchor.weight) / otherTotalW;
 
-  // Apply constraints: examen reprobatorio, examen min, sin TG / sin PP
   let constraintReason = null;
 
-  // Check special constraints if anchor is exam OR the others contain the exam
   if (courseId === "micro") {
-    // If the others include the exam, ensure neededInOthers >= 3.0 (but it's an avg, so this is approximate — better to check examen specifically)
-    // For simplicity: if anchor is examen and pick < 3.0 → invalid
     if (anchor.id === "e" && pick < 3.0) {
       constraintReason = "examen no puede ser < 3.0";
     }
-    // Check sin-TG constraint
     if (anchor.id !== "tg") {
       let earnedNoTG = 0, otherWNoTG = 0;
       a.perEvalAnalysis.forEach(p => { if (p.id !== "tg") otherWNoTG += p.weight; });
@@ -1091,18 +1182,15 @@ function renderScenarios(a, courseId) {
     }
   }
 
-  // Render prompt
   const promptEl = document.getElementById("scenarios-prompt");
   promptEl.innerHTML = `Si en <b>${anchor.name}</b> sacas:`;
 
-  // Render option buttons
   const optionsEl = document.getElementById("scenario-options");
   optionsEl.innerHTML = picks.map(p => `
     <button class="scenario-btn ${p === pick ? "active" : ""}" data-pick="${p}">
       ${p.toFixed(1)}
     </button>`).join("");
 
-  // Render result
   const resultEl = document.getElementById("scenario-result");
   const otherCount = others.length;
   const otherNames = otherCount === 1 ? others[0].name : `las otras ${otherCount} pendientes`;
@@ -1151,6 +1239,31 @@ document.addEventListener("click", e => {
 });
 
 document.addEventListener("input", e => {
+  // Number input
+  if (e.target.classList.contains("grade-num-input")) {
+    const { course, id } = e.target.dataset;
+    const raw = e.target.value.trim();
+    if (raw === '') {
+      delete state.grades[course][id];
+    } else {
+      const val = parseFloat(raw);
+      if (!isNaN(val)) {
+        const clamped = Math.min(7, Math.max(1, val));
+        state.grades[course][id] = clamped.toString();
+        // Sync slider
+        const row = e.target.closest(".eval-row");
+        if (row) {
+          const slider = row.querySelector(".grade-slider");
+          if (slider) { slider.value = clamped; slider.dataset.set = "true"; }
+        }
+      }
+    }
+    saveState();
+    render();
+    return;
+  }
+
+  // Slider input
   if (e.target.classList.contains("grade-slider")) {
     const { course, id } = e.target.dataset;
     state.grades[course][id] = e.target.value;
@@ -1159,7 +1272,6 @@ document.addEventListener("input", e => {
 
     // Update the row visuals without full re-render
     const num = parseFloat(e.target.value);
-    const isSet = true;
     const fillPct = ((num - 1) / 6) * 100;
     const bcolor = gradeColor(num);
     const row = e.target.closest(".eval-row");
@@ -1171,6 +1283,9 @@ document.addEventListener("input", e => {
       row.querySelector(".progress-fill").style.background = bcolor;
       row.querySelector(".progress-fill").style.boxShadow = `0 0 8px ${bcolor}66`;
       row.querySelector(".progress-pct").textContent = Math.round(fillPct) + "%";
+      // Sync number input
+      const numInput = row.querySelector(".grade-num-input");
+      if (numInput) numInput.value = num.toFixed(1);
       // Add clear button if not there
       const evalRight = row.querySelector(".eval-right");
       if (!evalRight.querySelector(".clear-btn")) {
