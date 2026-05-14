@@ -407,8 +407,8 @@
       <div id="checks-list"></div>
     </div>
     <div id="per-eval" style="display:none">
-      <div class="per-eval-title">MÍNIMO PARA APROBAR EN CADA PENDIENTE</div>
-      <div class="per-eval-sub">si en las otras pendientes sacas 5.0 · considera todos los requisitos</div>
+      <div class="per-eval-title">MÍNIMO EN CADA EVALUACIÓN PENDIENTE</div>
+      <div class="per-eval-sub">asumiendo 7.0 en todo lo demás — piso absoluto considerando todos los requisitos</div>
       <div id="per-eval-list"></div>
     </div>
   </div>
@@ -747,11 +747,12 @@ function analyzeGrades(courseId) {
     if (eg !== null) specialChecks.push({ label:"Examen ≥ 3.0", passed: eg>=3.0, detail: `Tu examen: ${eg.toFixed(1)}` });
   }
 
-  // ── Per-eval analysis (all constraints) ──────────────────────────────────
+  // ── Per-eval analysis: minimum in each eval assuming 7.0 in all others ──────
   const perEvalAnalysis = pending.map(ev => {
     const otherW = pendW - ev.weight;
-    let needed = (thr * total - earned - 5.0 * otherW) / ev.weight;
-    let reason = "promedio general";
+    // Use 7.0 for others → gives the absolute floor for this eval
+    let needed = (thr * total - earned - 7.0 * otherW) / ev.weight;
+    let reason = "promedio general (con 7.0 en lo demás)";
 
     if (courseId === "micro") {
       if (ev.id === "e" && 3.0 > needed) { needed = 3.0; reason = "mínimo del examen"; }
@@ -759,7 +760,8 @@ function analyzeGrades(courseId) {
         let eNoTG = 0, otherPendNoTG = 0;
         done.filter(d=>d.id!=="tg").forEach(d=>eNoTG+=d.grade*d.weight);
         pending.filter(p=>p.id!=="tg"&&p.id!==ev.id).forEach(p=>otherPendNoTG+=p.weight);
-        const nForNoTG = (3.95 * 95 - eNoTG - 5.0 * otherPendNoTG) / ev.weight;
+        // Also assume 7.0 in other pending non-TG evals
+        const nForNoTG = (3.95 * 95 - eNoTG - 7.0 * otherPendNoTG) / ev.weight;
         if (nForNoTG > needed) { needed = nForNoTG; reason = "promedio sin Trabajo Grupal"; }
       }
     }
@@ -770,7 +772,8 @@ function analyzeGrades(courseId) {
         let eNoPP = 0, otherPendNoPP = 0;
         done.filter(d=>d.id!=="pp").forEach(d=>eNoPP+=d.grade*d.weight);
         pending.filter(p=>p.id!=="pp"&&p.id!==ev.id).forEach(p=>otherPendNoPP+=p.weight);
-        const nForNoPP = (4.0 * 70 - eNoPP - 5.0 * otherPendNoPP) / ev.weight;
+        // Also assume 7.0 in other pending non-PP evals
+        const nForNoPP = (4.0 * 70 - eNoPP - 7.0 * otherPendNoPP) / ev.weight;
         if (nForNoPP > needed) { needed = nForNoPP; reason = "promedio sin Paso Práctico"; }
       }
     }
@@ -1064,16 +1067,20 @@ function renderVerdict() {
       const n = ev.needed;
       const ok = ev.achievable;
       const disp = Math.max(1.0, n);
-      const bg = !ok ? "#3A1F1F" : n <= 4.0 ? "#143020" : n > 6.0 ? "#3A271F" : "#3A2F1F";
-      const fg = !ok ? "#F87171" : n <= 4.0 ? "#4ADE80" : n > 6.0 ? "#FB923C" : "#FACC15";
-      const reasonHtml = `<div style="font-size:10px;color:#5E6E87;margin-top:2px;font-style:italic">por ${ev.reason}</div>`;
+      const isFloor = disp <= 1.05; // essentially 1.0 — already covered
+      const bg = !ok ? "#3A1F1F" : isFloor ? "#143020" : n <= 4.0 ? "#143020" : n > 6.0 ? "#3A271F" : "#3A2F1F";
+      const fg = !ok ? "#F87171" : isFloor ? "#4ADE80" : n <= 4.0 ? "#4ADE80" : n > 6.0 ? "#FB923C" : "#FACC15";
+      const dispText = !ok ? "imposible" : isFloor ? "cualquiera" : disp.toFixed(1);
+      const constraintNote = ev.reason !== "promedio general (con 7.0 en lo demás)"
+        ? `<div style="font-size:10px;color:#5E6E87;margin-top:2px;font-style:italic">restricción: ${ev.reason}</div>`
+        : "";
       return `
         <div class="per-eval-row" style="align-items:flex-start;padding:10px 0">
           <div>
             <div class="per-eval-name">${ev.name}</div>
-            ${reasonHtml}
+            ${constraintNote}
           </div>
-          <div class="per-eval-grade" style="background:${bg};color:${fg};margin-top:2px">${ok ? disp.toFixed(1) : "imposible"}</div>
+          <div class="per-eval-grade" style="background:${bg};color:${fg};margin-top:2px;min-width:80px;font-size:${isFloor||!ok?'12px':'14px'}">${dispText}</div>
         </div>`;
     }).join("");
   } else { perEvalSection.style.display = "none"; }
